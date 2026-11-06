@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="9031cac0-16ca-4ce2-a6a1-28a50ac5f2a1" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="c3c361a9-0215-4a89-aeca-5559e511741e" />
+	<flow name="mulesoft-customer-apiFlow" doc:id="8681c728-41c1-4da6-83aa-ba28595f5ca8" >
+		<http:listener doc:name="Listener" doc:id="dece58c4-440f-49c7-9d43-e020ca4f3fdd" path="/api/customers" config-ref="HTTP_Listener_config"/>
+		<os:retrieve-all doc:name="Retrieve all" doc:id="db2a7774-482e-4d48-9e0f-974f423510ed" objectStore="Object_store" target="allCustomers"/>
+		<logger level="INFO" doc:name="Logger" doc:id="61b91a41-4fcf-4a25-b056-cd7f96df6989" message='#[write(&#10;    valuesOf(vars.allCustomers) map ((customer) -&gt;&#10;        read(customer, "application/json")&#10;    ),&#10;    "application/json"&#10;)]'/>
+		<ee:transform doc:name="Transform Message" doc:id="cec37cac-d5fb-4b35-851d-65b766bc3512" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+%dw 2.0
+output application/json
+---
+valuesOf(vars.allCustomers) map ((customer) -> read(customer, "application/json"))]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="mulesoft-updateCustomer-Flow" doc:id="8e749108-4039-41d5-b468-30d82e7beaf1" >
+		<http:listener doc:name="Listener" doc:id="a14ac186-7321-42aa-af0c-6829f4f8c818" config-ref="HTTP_Listener_config" path="/api/customers/{id}" allowedMethods="PUT">
+			<http:response statusCode="200" />
+		</http:listener>
+		<os:retrieve doc:name="Retrieve" doc:id="a9c9d32f-d9ab-44f2-8d01-34f1a92fac6e" key="#[attributes.uriParams.id as String]" objectStore="Object_store" target="existingCustomer"/>
+		<set-variable value="#[output application/java&#10;---&#10;{&#10;    id: attributes.uriParams.id as Number,&#10;    name: payload.name,&#10;    email: payload.email&#10;}]" doc:name="Set Variable" doc:id="82d4c728-ef7e-4d46-825d-6ad4afea0224" variableName="updatedCustomer" mimeType="application/java"/>
+		<!-- <os:remove doc:name="Remove" doc:id="2675ffbe-a7d7-4eed-8697-34636c5a885f" key="#[attributes.uriParams.id as String]" objectStore="Object_store"/>-->
+		<os:store doc:name="Store" doc:id="66c1d6b5-154c-4680-8a55-eb1ad29f766b" key='#[attributes.uriParams.id as String]' objectStore="Object_store">
+			<os:value ><![CDATA[#[write(vars.updatedCustomer, "application/json")]]]></os:value>
+		</os:store>
+		<set-payload value='#[output application/json&#10;---&#10;{&#10;    message: "Customer updated successfully",&#10;    customer: {&#10;        id: vars.updatedCustomer.id as Number,&#10;        name: vars.updatedCustomer.name as String,&#10;        email: vars.updatedCustomer.email as String&#10;    }&#10;}]' doc:name="Set Payload" doc:id="a2ad884f-7d85-4d9d-a3e3-8145bde6b8a1" mimeType="application/json"/>
+	</flow>
+	<flow name="mulesoft-deleteCustomer-Flow" doc:id="20b29708-2e82-4fb2-97a6-c6f959a0ff29" >
+		<http:listener doc:name="Listener" doc:id="4bebe8e3-e6bb-4d69-bc3c-438e8b33ef42" config-ref="HTTP_Listener_config" path="/api/customers/{id}" outputMimeType="application/json">
+			<http:response statusCode='#[vars.responseStatus default 200]' >
+			</http:response>
+		</http:listener>
+		<try doc:name="Try" doc:id="b1cd5179-df3d-4dcc-b068-280b7f74994b" >
+			<os:retrieve doc:name="Retrieve" doc:id="85353c92-0b77-43fc-af58-7e92c85b0ec2" key="#[attributes.uriParams.id as String]" objectStore="Object_store" target="existingCustomer" />
+			<os:remove doc:name="Remove" doc:id="a1573251-e012-40c5-be0c-2ee13d102612" key="#[attributes.uriParams.id as String]" objectStore="Object_store"/>
+			<set-payload value='#[{&#10;    message: "Customer deleted successfully",&#10;    id: attributes.uriParams.id&#10;}]' doc:name="Set Payload" doc:id="92f05d48-eb9a-4dc5-8c83-2bab5144dadd" mimeType="application/java"/>
+			<ee:transform doc:name="Transform Message" doc:id="9267e3e7-7e89-43f0-aa78-9f7da353e2bb" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<set-variable value="200" doc:name="Set Variable" doc:id="061fc502-3641-4d0b-80a9-c91356144cb3" variableName="responseStatus"/>
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="2d53a7b3-2bbd-4fee-94a6-116d75447a26" type="OS:KEY_NOT_FOUND">
+					<set-payload value='#[{&#10;    message: "Customer not found",&#10;    id: attributes.uriParams.id&#10;}]' doc:name="Set Payload" doc:id="97dff80e-a402-4404-bf5b-b2551f60a22c" mimeType="application/java"/>
+					<ee:transform doc:name="Transform Message" doc:id="38601dae-efed-4a6f-a25b-79f5f125d5c9" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<set-variable value="404" doc:name="Set Variable" doc:id="80f12640-401c-41ed-aa98-1067f5310790" variableName="responseStatus"/>
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</flow>
+	<flow name="mulesoft-Create-customer-Flow" doc:id="018a86f1-e490-4179-b2f6-e4011a912942" >
+		<http:listener doc:name="Listener" doc:id="6ecb365a-4e95-4cec-9a52-103390d961ff" config-ref="HTTP_Listener_config" path="/api/customers" allowedMethods="POST">
+			<http:response statusCode="201" />
+		</http:listener>
+		<set-variable value='#[payload]' doc:name="Set Variable" doc:id="0144974c-8591-4f57-9e48-70ce14b866b4" variableName="newCustomer"/>
+		<os:store doc:name="Store" doc:id="1637e757-bfc2-4185-8b48-f450753ee311" key="#[vars.newCustomer.id as String]" failIfPresent="true" objectStore="Object_store">
+			<os:value ><![CDATA[#[vars.newCustomer]]]></os:value>
+		</os:store>
+		<set-payload value='#[{&#10;    message: "Customer created successfully",&#10;    customer: vars.newCustomer&#10;}]' doc:name="Set Payload" doc:id="b47e0c60-cade-4505-91a5-c35c040d6e30" mimeType="application/json"/>
+	</flow>
+	<flow name="mulesoft-retrieveCustomer-Flow" doc:id="2bf04de1-225c-417c-9004-e317d9efc205" >
+		<http:listener doc:name="Listener" doc:id="d0e25a6d-d0f3-4143-bfa4-ce4180263ee1" config-ref="HTTP_Listener_config" path="/api/customers/{id}" allowedMethods="GET">
+			<http:response statusCode='#[if (payload.message == "Customer not found") 404 else 200]' />
+		</http:listener>
+		<try doc:name="Try" doc:id="c76ee142-a6c3-4964-b508-ea9f3b46200f" >
+			<os:retrieve doc:name="Retrieve" doc:id="ab584bd1-090d-4656-8a93-647ad6e2c975" key="#[attributes.uriParams.id as String]" objectStore="Object_store" />
+			<ee:transform doc:name="Transform Message" doc:id="c0e31cc3-04c9-40dd-9782-54c087aff86f" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+
+output application/json
+---
+if (payload is String)
+    read(payload, "application/json")
+else
+    payload]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<set-payload value="#[payload]" doc:name="Set Payload" doc:id="581985b9-e77b-4707-a0c0-c9171a984637" mimeType="application/json" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="062c20a9-3f14-42f6-9973-9fe2eee1974e" type="OS:KEY_NOT_FOUND">
+					<set-payload value='#[{&#10;    message: "Customer not found"&#10;}]' doc:name="Set Payload" doc:id="2d56fc2e-dc71-4679-bfae-51fb35c5bd1e" />
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</flow>
+</mule>
