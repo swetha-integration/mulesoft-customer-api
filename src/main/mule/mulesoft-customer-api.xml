@@ -10,8 +10,8 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 		<http:listener-connection host="0.0.0.0" port="8081" />
 	</http:listener-config>
 	<os:object-store name="Object_store" doc:name="Object store" doc:id="c3c361a9-0215-4a89-aeca-5559e511741e" />
-	<flow name="mulesoft-customer-apiFlow" doc:id="8681c728-41c1-4da6-83aa-ba28595f5ca8" >
-		<http:listener doc:name="Listener" doc:id="dece58c4-440f-49c7-9d43-e020ca4f3fdd" path="/api/customers" config-ref="HTTP_Listener_config"/>
+	<flow name="mulesoft-retrieveAllCustomers-Flow" doc:id="8681c728-41c1-4da6-83aa-ba28595f5ca8" >
+		<http:listener doc:name="Listener" doc:id="dece58c4-440f-49c7-9d43-e020ca4f3fdd" path="/api/customers" config-ref="HTTP_Listener_config" allowedMethods="GET"/>
 		<os:retrieve-all doc:name="Retrieve all" doc:id="db2a7774-482e-4d48-9e0f-974f423510ed" objectStore="Object_store" target="allCustomers"/>
 		<logger level="INFO" doc:name="Logger" doc:id="61b91a41-4fcf-4a25-b056-cd7f96df6989" message='#[write(&#10;    valuesOf(vars.allCustomers) map ((customer) -&gt;&#10;        read(customer, "application/json")&#10;    ),&#10;    "application/json"&#10;)]'/>
 		<ee:transform doc:name="Transform Message" doc:id="cec37cac-d5fb-4b35-851d-65b766bc3512" >
@@ -37,7 +37,7 @@ valuesOf(vars.allCustomers) map ((customer) -> read(customer, "application/json"
 		<set-payload value='#[output application/json&#10;---&#10;{&#10;    message: "Customer updated successfully",&#10;    customer: {&#10;        id: vars.updatedCustomer.id as Number,&#10;        name: vars.updatedCustomer.name as String,&#10;        email: vars.updatedCustomer.email as String&#10;    }&#10;}]' doc:name="Set Payload" doc:id="a2ad884f-7d85-4d9d-a3e3-8145bde6b8a1" mimeType="application/json"/>
 	</flow>
 	<flow name="mulesoft-deleteCustomer-Flow" doc:id="20b29708-2e82-4fb2-97a6-c6f959a0ff29" >
-		<http:listener doc:name="Listener" doc:id="4bebe8e3-e6bb-4d69-bc3c-438e8b33ef42" config-ref="HTTP_Listener_config" path="/api/customers/{id}" outputMimeType="application/json">
+		<http:listener doc:name="Listener" doc:id="4bebe8e3-e6bb-4d69-bc3c-438e8b33ef42" config-ref="HTTP_Listener_config" path="/api/customers/{id}" outputMimeType="application/json" allowedMethods="DELETE">
 			<http:response statusCode='#[vars.responseStatus default 200]' >
 			</http:response>
 		</http:listener>
@@ -101,7 +101,7 @@ else
 			<set-payload value="#[payload]" doc:name="Set Payload" doc:id="581985b9-e77b-4707-a0c0-c9171a984637" mimeType="application/json" />
 			<error-handler >
 				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="062c20a9-3f14-42f6-9973-9fe2eee1974e" type="OS:KEY_NOT_FOUND">
-					<set-payload value='#[{&#10;    message: "Customer not found"&#10;}]' doc:name="Set Payload" doc:id="2d56fc2e-dc71-4679-bfae-51fb35c5bd1e" />
+					<set-payload value='#[output application/json&#10;---&#10;{&#10;    message: "Customer not found"&#10;}]' doc:name="Set Payload" doc:id="2d56fc2e-dc71-4679-bfae-51fb35c5bd1e" mimeType="application/json"/>
 				</on-error-continue>
 			</error-handler>
 		</try>
